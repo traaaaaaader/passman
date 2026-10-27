@@ -1,0 +1,50 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // typescript/unicorn/oxc — дефолтный набор oxlint; react + jsx-a11y добавлены
+  // для React-TS приложения. Prettier отдельно отвечает за форматирование —
+  // oxlint умышленно не содержит форматирующих правил (отступы/кавычки/точки
+  // с запятой), поэтому конфликтов между ними нет.
+  "plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn"
+  },
+  "rules": {
+    // Новый JSX-рантайм (react-jsx) не требует React в области видимости
+    "react/react-in-jsx-scope": "off",
+    // Срабатывает на обычный паттерн "загрузить данные через invoke() в
+    // useEffect и положить в состояние" — он используется во всех провайдерах
+    // (lib/session.tsx, lib/sections.tsx, lib/settings.tsx) и вьюхах с
+    // данными. Точечные случаи из других категорий (например, лишние
+    // зависимости эффекта) по-прежнему ловит react-hooks/exhaustive-deps.
+    "react/set-state-in-effect": "off",
+    // Автофокус на единственном активном поле модалки/экрана входа —
+    // осознанный выбор UX (мастер-пароль при входе, название записи при
+    // создании пароля), а не ошибка доступности
+    "jsx-a11y/no-autofocus": "off",
+
+    // --- Усиленные правила типобезопасности (поверх дефолтного набора) ---
+    // Явный `any` выключает проверку типов именно там, где в приложении-
+    // менеджере паролей это важнее всего (IPC-граница, данные из хранилища).
+    "typescript/no-explicit-any": "error",
+    // `!` заглушает проверку на null/undefined компилятором — именно такие
+    // места исторически приводили к панике на расшифрованных, но пустых
+    // полях. Предпочитаем явные проверки.
+    "typescript/no-non-null-assertion": "warn",
+    "typescript/consistent-type-imports": "warn",
+    "typescript/no-unsafe-function-type": "error",
+    "typescript/prefer-nullish-coalescing": "warn",
+    "typescript/prefer-optional-chain": "warn",
+    // Требует типовой информации (см. "--type-aware" в скрипте lint).
+    // Непойманный reject у invoke()/async-обработчика в приложении с
+    // мастер-паролем и rate-limiter'ом means ошибка молча проглатывается —
+    // пользователь не увидит ни блокировку, ни причину отказа.
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error"
+  },
+  "env": {
+    "builtin": true
+  },
+  "ignorePatterns": ["dist", "src-tauri", "src/routeTree.gen.ts"]
+}
