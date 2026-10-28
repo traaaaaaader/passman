@@ -26,12 +26,29 @@ argon2 = "0.5"
 chacha20poly1305 = "0.10"
 zeroize = { version = "1", features = ["derive"] }
 subtle = "2"
+url = "2.5.8"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+#
+# ВАЖНО для мобильных сборок (Android/iOS): `panic = "abort"` здесь означает,
+# что паника где угодно в коде этого крейта завершает ВЕСЬ процесс немедленно
+# — для десктоп-приложения это нормально (крашится только сам Passman), но
+# для `mobile_ffi.rs`, который вызывается из системного AutofillService/
+# CredentialProviderExtension ВНУТРИ ПРОЦЕССА ДРУГОГО ПРИЛОЖЕНИЯ (браузера,
+# Chrome, Safari), это означало бы, что баг в нашем коде обрушивает чужое
+# приложение, а не только показывает ошибку автозаполнения.
+# `catch_unwind` в mobile_ffi.rs рассчитан на размотку стека (unwind), а не
+# abort — поэтому мобильные сборки ОБЯЗАНЫ переопределять это флагом
+# компиляции, а не менять профиль здесь (который общий для всех платформ):
+#   RUSTFLAGS="-C panic=unwind" cargo build --target aarch64-linux-android --release
+# См. комментарий в начале mobile_ffi.rs и .github/workflows/build.yml.
 [profile.release]
 codegen-units = 1
 lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"

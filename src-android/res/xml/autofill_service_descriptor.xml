@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Минимальный дескриптор автозаполнения — обязателен по контракту
+  AutofillService (<meta-data android:name="android.autofill"> в манифесте
+  должна указывать на XML такого вида), но сам может быть пустым: у нас нет
+  отдельного экрана настроек внутри самого сервиса (настройка — через
+  основной интерфейс Passman), поэтому android:settingsActivity не указан.
+-->
+<autofill-service xmlns:android="http://schemas.android.com/apk/res/android" />

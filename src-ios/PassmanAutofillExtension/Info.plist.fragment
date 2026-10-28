@@ -1,0 +1,13 @@
+<!--
+  Это НЕ полноценный Info.plist, а фрагмент ключей `NSExtension`, которые
+  Xcode сгенерирует сам при создании таргета по шаблону "Credential
+  Provider Extension" (File → New → Target). Используйте как референс для
+  проверки/правки сгенерированных значений, а не для копирования целиком.
+-->
+<key>NSExtension</key>
+<dict>
+    <key>NSExtensionPointIdentifier</key>
+    <string>com.apple.authentication-services-credential-provider-ui</string>
+    <key>NSExtensionPrincipalClass</key>
+    <string>$(PRODUCT_MODULE_NAME).CredentialProviderViewController</string>
+</dict>

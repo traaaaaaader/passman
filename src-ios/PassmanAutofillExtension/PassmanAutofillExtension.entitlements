@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      ВАЖНО: тот же App Group должен быть добавлен и в entitlements
+      ОСНОВНОГО приложения (не только расширения) — иначе контейнер не
+      будет общим. См. src-ios/README.md.
+    -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.trader.passman</string>
+    </array>
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(AppIdentifierPrefix)com.trader.passman.shared</string>
+    </array>
+</dict>
+</plist>

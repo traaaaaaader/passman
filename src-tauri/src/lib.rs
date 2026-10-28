@@ -1,5 +1,7 @@
 mod commands;
 mod crypto;
+mod domain_match;
+mod mobile_ffi;
 mod model;
 mod rate_limiter;
 mod state;

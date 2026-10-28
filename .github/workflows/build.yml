@@ -120,6 +120,13 @@ jobs:
           # добавить секреты репозитория с keystore и прокинуть их сюда —
           # см. https://v2.tauri.app/distribute/sign/android/. Без них
           # получится неподписанный релизный APK/AAB — для тестов достаточно.
+          #
+          # ОБЯЗАТЕЛЬНО: `panic = "abort"` в src-tauri/Cargo.toml подходит
+          # десктопу, но не мобильному FFI-слою (src/mobile_ffi.rs) — там
+          # паника обязана размотать стек (`catch_unwind`), а не обрушить
+          # процесс хост-приложения (браузера и т.п.), в котором выполняется
+          # системный AutofillService. См. комментарий в mobile_ffi.rs.
+          RUSTFLAGS: "-C panic=unwind"
 
       - name: Загрузить артефакты
         uses: actions/upload-artifact@v4
@@ -161,6 +168,10 @@ jobs:
 
       - name: Собрать iOS-приложение
         run: bun run tauri ios build
+        env:
+          # См. комментарий в android-джобе выше и в src/mobile_ffi.rs —
+          # то же самое касается CredentialProviderExtension на iOS.
+          RUSTFLAGS: "-C panic=unwind"
 
       - name: Загрузить артефакты
         if: success()
