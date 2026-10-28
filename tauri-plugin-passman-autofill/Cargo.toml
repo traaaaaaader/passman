@@ -1,0 +1,13 @@
+[package]
+name = "tauri-plugin-passman-autofill"
+version = "0.1.0"
+description = "Системное автозаполнение паролей Passman через Android AutofillService"
+edition = "2021"
+license = "MIT"
+links = "tauri-plugin-passman-autofill"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }
+
+[dependencies]
+tauri = { version = "2" }

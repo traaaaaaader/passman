@@ -27,6 +27,7 @@ chacha20poly1305 = "0.10"
 zeroize = { version = "1", features = ["derive"] }
 subtle = "2"
 url = "2.5.8"
+tauri-plugin-passman-autofill = { path = "../tauri-plugin-passman-autofill" }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

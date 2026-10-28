@@ -54,13 +54,53 @@ use zeroize::Zeroizing;
 
 use crate::crypto::{self, VaultKey};
 use crate::domain_match::{domain_matches, entry_host};
-use crate::model::VaultData;
+use crate::model::{DEFAULT_SECTION_ID, Entry, VaultData};
 use crate::store;
 
 /// Общая маска сообщения об ошибке при панике — специально не передаём
 /// наружу исходное сообщение паники: оно может случайно содержать значение
 /// из отладочного `assert!`/`unwrap()` рядом с конфиденциальными данными.
 const INTERNAL_ERROR: &str = "Внутренняя ошибка Passman";
+
+const GENERATED_PASSWORD_LOWERCASE: &str = "abcdefghijklmnopqrstuvwxyz";
+const GENERATED_PASSWORD_UPPERCASE: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const GENERATED_PASSWORD_DIGITS: &str = "0123456789";
+const GENERATED_PASSWORD_SYMBOLS: &str = "!@#$%^&*()-_=+[]{};:,.<>/?";
+const GENERATED_PASSWORD_LENGTH: usize = 20;
+
+/// Пароль для поля "новый пароль" на сайте — вызывается ДО какой-либо
+/// аутентификации (генерация не требует доступа к хранилищу), поэтому
+/// использует фиксированные "сильные по умолчанию" настройки, а не
+/// `Settings.generator` пользователя (которые лежат внутри зашифрованных
+/// данных). Зеркалит алгоритм `src/lib/generator.ts` (тот же набор
+/// символов, та же схема "хотя бы один из каждого класса + Fisher-Yates"),
+/// чтобы сгенерированный пароль был той же формы, что и в основном
+/// интерфейсе.
+fn generate_strong_password() -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let pools = [
+        GENERATED_PASSWORD_LOWERCASE,
+        GENERATED_PASSWORD_UPPERCASE,
+        GENERATED_PASSWORD_DIGITS,
+        GENERATED_PASSWORD_SYMBOLS,
+    ];
+    let charset: Vec<char> = pools.concat().chars().collect();
+
+    let mut chars: Vec<char> = Vec::with_capacity(GENERATED_PASSWORD_LENGTH);
+    for pool in pools {
+        let pool_chars: Vec<char> = pool.chars().collect();
+        chars.push(pool_chars[rng.gen_range(0..pool_chars.len())]);
+    }
+    while chars.len() < GENERATED_PASSWORD_LENGTH {
+        chars.push(charset[rng.gen_range(0..charset.len())]);
+    }
+    for i in (1..chars.len()).rev() {
+        let j = rng.gen_range(0..=i);
+        chars.swap(i, j);
+    }
+    chars.into_iter().collect()
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -134,6 +174,39 @@ fn get_entry_password(
         .ok_or_else(|| "Запись не найдена".to_string())
 }
 
+/// Создаёт новую запись из перехваченного автозаполнением сохранения формы
+/// (Android `onSaveRequest` / iOS-аналог). Домен и название записи — одно и
+/// то же (домен, который сообщил браузер) — у этой записи нет отдельного
+/// поля логина, так что различать несколько учёток на одном домене так же
+/// нельзя, как и при ручном вводе через основной интерфейс.
+fn create_entry_from_autofill(
+    app_data_dir: &Path,
+    vault_key: &VaultKey,
+    domain: &str,
+    password: &str,
+) -> Result<MobileEntryMatch, String> {
+    let mut data = load_decrypted_data(app_data_dir, vault_key)?;
+    let now = store::now_ms();
+    let entry = Entry {
+        id: store::new_id(),
+        section_id: DEFAULT_SECTION_ID.to_string(),
+        name: domain.to_string(),
+        password: password.to_string(),
+        description: String::new(),
+        link: domain.to_string(),
+        created_at: now,
+        updated_at: now,
+    };
+    let result = MobileEntryMatch {
+        id: entry.id.clone(),
+        name: entry.name.clone(),
+        link: entry.link.clone(),
+    };
+    data.entries.push(entry);
+    store::save_data(app_data_dir, vault_key, &data)?;
+    Ok(result)
+}
+
 fn vault_key_from_bytes(bytes: &[u8]) -> Result<VaultKey, String> {
     if bytes.len() != crypto::KEY_LEN {
         return Err("Некорректная длина ключа хранилища".to_string());
@@ -158,8 +231,8 @@ mod android {
     use zeroize::Zeroizing;
 
     use super::{
-        INTERNAL_ERROR, get_entry_password, search_by_domain, unlock_with_password,
-        vault_key_from_bytes,
+        INTERNAL_ERROR, create_entry_from_autofill, generate_strong_password, get_entry_password,
+        search_by_domain, unlock_with_password, vault_key_from_bytes,
     };
 
     /// Бросает Java-исключение `java/lang/Exception` с заданным сообщением.
@@ -279,6 +352,67 @@ mod android {
                 throw(&mut env, &message);
                 std::ptr::null_mut()
             }
+            Err(_panic) => {
+                throw(&mut env, INTERNAL_ERROR);
+                std::ptr::null_mut()
+            }
+        }
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_com_trader_passman_autofill_VaultBridge_createEntry<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+        app_data_dir: JString<'local>,
+        vault_key: JByteArray<'local>,
+        domain: JString<'local>,
+        password: JByteArray<'local>,
+    ) -> jni::sys::jstring {
+        let result = catch_unwind(AssertUnwindSafe(|| -> Result<String, String> {
+            let dir = jstring_to_string(&mut env, &app_data_dir)?;
+            let key_bytes = jbytearray_to_vec(&mut env, &vault_key)?;
+            let key = vault_key_from_bytes(&key_bytes)?;
+            let domain_str = jstring_to_string(&mut env, &domain)?;
+            let mut password_bytes = jbytearray_to_vec(&mut env, &password)?;
+            let password_str = String::from_utf8(password_bytes.clone())
+                .map_err(|_| "Пароль должен быть в UTF-8".to_string());
+            zeroize::Zeroize::zeroize(&mut password_bytes);
+            let password_str = Zeroizing::new(password_str?);
+            let entry = create_entry_from_autofill(Path::new(&dir), &key, &domain_str, &password_str)?;
+            serde_json::to_string(&entry).map_err(|_| INTERNAL_ERROR.to_string())
+        }));
+
+        match result {
+            Ok(Ok(json)) => match env.new_string(json) {
+                Ok(s) => s.into_raw(),
+                Err(_) => std::ptr::null_mut(),
+            },
+            Ok(Err(message)) => {
+                throw(&mut env, &message);
+                std::ptr::null_mut()
+            }
+            Err(_panic) => {
+                throw(&mut env, INTERNAL_ERROR);
+                std::ptr::null_mut()
+            }
+        }
+    }
+
+    /// Не требует ни `app_data_dir`, ни `vault_key` — генерация не касается
+    /// хранилища вообще, поэтому может вызываться до любой аутентификации
+    /// (ровно так Chrome/Google предлагают "сильный пароль" на экране
+    /// регистрации, не разблокируя ничего).
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_com_trader_passman_autofill_VaultBridge_generatePassword<'local>(
+        mut env: JNIEnv<'local>,
+        _class: JClass<'local>,
+    ) -> jni::sys::jstring {
+        let result = catch_unwind(AssertUnwindSafe(generate_strong_password));
+        match result {
+            Ok(password) => match env.new_string(password) {
+                Ok(s) => s.into_raw(),
+                Err(_) => std::ptr::null_mut(),
+            },
             Err(_panic) => {
                 throw(&mut env, INTERNAL_ERROR);
                 std::ptr::null_mut()

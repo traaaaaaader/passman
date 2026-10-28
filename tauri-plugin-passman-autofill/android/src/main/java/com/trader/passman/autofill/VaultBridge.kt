@@ -44,4 +44,21 @@ object VaultBridge {
     /** [vaultKey] — ровно 32 байта. Бросает исключение, если запись не найдена. */
     @JvmStatic
     external fun getPassword(appDataDir: String, vaultKey: ByteArray, entryId: String): String
+
+    /**
+     * Создаёт новую запись (название и ссылка — домен [domain]) из пароля,
+     * перехваченного системным сохранением автозаполнения. Возвращает JSON
+     * вида `{"id":"...","name":"...","link":"..."}`. [password] — вызывающий
+     * код обязан обнулить массив сразу после вызова.
+     */
+    @JvmStatic
+    external fun createEntry(appDataDir: String, vaultKey: ByteArray, domain: String, password: ByteArray): String
+
+    /**
+     * Генерирует надёжный пароль — НЕ требует ни [appDataDir], ни ключа
+     * хранилища, может вызываться до любой аутентификации (поле "новый
+     * пароль" на экране регистрации на сайте).
+     */
+    @JvmStatic
+    external fun generatePassword(): String
 }

@@ -1,6 +1,5 @@
 package com.trader.passman.autofill
 
-import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
 import android.os.Build
@@ -19,9 +18,11 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.RemoteViews
 import android.widget.TextView
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.fragment.app.FragmentActivity
 import org.json.JSONArray
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
@@ -39,7 +40,7 @@ import java.util.concurrent.Executors
  * Tauri Android-проекте, куда этот файл встраивается.
  */
 @RequiresApi(Build.VERSION_CODES.O)
-class UnlockActivity : Activity() {
+class UnlockActivity : FragmentActivity() {
 
     private var autofillIds: ArrayList<AutofillId> = arrayListOf()
     private var domain: String = ""
@@ -73,7 +74,13 @@ class UnlockActivity : Activity() {
         tryBiometricThenFallback()
     }
 
-    private fun appDataDir(): String = applicationContext.filesDir.absolutePath
+    // ВАЖНО: это НЕ `filesDir` (.../files/) — Tauri на Android отдаёт
+    // `app.path().app_data_dir()` равным корню данных приложения
+    // (`/data/data/<package>/`), и именно туда `store.rs` пишет
+    // `vault.json`. Расхождение с `filesDir` выглядело как «неверный
+    // мастер-пароль» (хранилище просто не находилось), хотя пароль был
+    // верным.
+    private fun appDataDir(): String = applicationContext.dataDir.absolutePath
 
     private fun biometricAvailable(): Boolean =
         BiometricManager.from(this)
@@ -281,7 +288,8 @@ class UnlockActivity : Activity() {
         backgroundExecutor.execute {
             val matchesJson = try {
                 VaultBridge.searchByDomain(appDataDir(), vaultKey, domain)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e(TAG, "proceedWithVaultKey: searchByDomain упал, domain=$domain", e)
                 null
             }
 
@@ -290,6 +298,7 @@ class UnlockActivity : Activity() {
                 runOnUiThread { cancelAndFinish() }
                 return@execute
             }
+            Log.d(TAG, "proceedWithVaultKey: searchByDomain(domain=$domain) -> $matchesJson")
 
             val matches = try {
                 val array = JSONArray(matchesJson)
@@ -297,11 +306,13 @@ class UnlockActivity : Activity() {
                     val obj = array.getJSONObject(i)
                     Pair(obj.getString("id"), obj.getString("name"))
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e(TAG, "proceedWithVaultKey: не удалось распарсить JSON", e)
                 emptyList()
             }
 
             if (matches.isEmpty()) {
+                Log.d(TAG, "proceedWithVaultKey: 0 совпадений по домену $domain")
                 vaultKey.fill(0)
                 runOnUiThread { cancelAndFinish() }
                 return@execute
@@ -341,7 +352,8 @@ class UnlockActivity : Activity() {
         backgroundExecutor.execute {
             val password = try {
                 VaultBridge.getPassword(appDataDir(), vaultKey, entryId)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e(TAG, "fillWithEntry: getPassword упал, entryId=$entryId", e)
                 null
             } finally {
                 vaultKey.fill(0)
@@ -352,8 +364,12 @@ class UnlockActivity : Activity() {
                     cancelAndFinish()
                     return@runOnUiThread
                 }
+                Log.d(TAG, "fillWithEntry: пароль получен, autofillIds=${autofillIds.size}, ставлю результат")
                 val presentation = RemoteViews(packageName, android.R.layout.simple_list_item_1).apply {
                     setTextViewText(android.R.id.text1, "Passman")
+                    // См. комментарий в PassmanAutofillService — тот же
+                    // риск белого текста на белом фоне подсказки.
+                    setTextColor(android.R.id.text1, Color.BLACK)
                 }
                 val datasetBuilder = Dataset.Builder()
                 for (id in autofillIds) {

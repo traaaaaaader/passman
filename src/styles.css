@@ -81,14 +81,23 @@
 }
 
 html,
-body,
-#root {
+body {
   height: 100%;
 }
 
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
+}
+
+/* На мобильных (Android/iOS) WebView рисует контент edge-to-edge под
+   статус-баром и нижней навигационной панелью — отступаем на безопасную
+   зону, чтобы шапка и контент не наезжали на системные бары. */
+#root {
+  height: 100dvh;
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 * {

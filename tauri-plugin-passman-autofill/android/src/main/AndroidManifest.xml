@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!--
+          exported="true" здесь ОБЯЗАТЕЛЕН (не нарушение принципа минимума
+          привилегий) — систему, а не произвольное приложение, должна быть
+          способна забиндиться к сервису; это и обеспечивает permission
+          ниже: BIND_AUTOFILL_SERVICE — служебное разрешение уровня подписи
+          платформы, которое есть только у самой системы Android. Сторонние
+          приложения не могут его получить, значит exported=true тут
+          безопасен по конструкции.
+        -->
+        <service
+            android:name=".PassmanAutofillService"
+            android:exported="true"
+            android:permission="android.permission.BIND_AUTOFILL_SERVICE"
+            android:label="Passman">
+            <intent-filter>
+                <action android:name="android.service.autofill.AutofillService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.autofill"
+                android:resource="@xml/autofill_service_descriptor" />
+        </service>
+
+        <!--
+          exported="false" — эту Activity должен запускать только сам
+          Android Autofill Framework через IntentSender, выданный нашим же
+          сервисом, а не произвольное внешнее приложение напрямую.
+        -->
+        <activity
+            android:name=".UnlockActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.DeviceDefault.Light.Dialog.NoActionBar"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance" />
+
+        <!--
+          exported="false" — запускается только самим PassmanAutofillService
+          (из onSaveRequest, через явный Intent), не произвольным внешним
+          приложением.
+        -->
+        <activity
+            android:name=".SaveEntryActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.DeviceDefault.Light.Dialog.NoActionBar"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance" />
+    </application>
+</manifest>

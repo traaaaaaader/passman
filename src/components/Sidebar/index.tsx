@@ -19,7 +19,7 @@ export function Sidebar({ activeSectionId, mobileOpen, onMobileClose }: SidebarP
         />
       )}
       <aside
-        className={`border-border bg-card fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r transition-transform duration-200 md:static md:z-auto md:w-64 md:max-w-none md:flex-shrink-0 md:translate-x-0 ${
+        className={`border-border bg-card fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] transition-transform duration-200 md:static md:z-auto md:w-64 md:max-w-none md:flex-shrink-0 md:translate-x-0 md:pt-0 md:pb-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

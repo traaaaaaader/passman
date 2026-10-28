@@ -53,7 +53,7 @@ export function UnlockScreen() {
   };
 
   return (
-    <div className="bg-background flex h-screen w-screen items-center justify-center px-4">
+    <div className="bg-background flex h-full w-full items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardContent>
           <div className="mb-6 flex flex-col items-center text-center">

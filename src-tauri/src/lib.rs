@@ -16,6 +16,7 @@ use state::AppState;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_passman_autofill::init())
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             app.manage(Mutex::new(AppState::new(app_data_dir)));
